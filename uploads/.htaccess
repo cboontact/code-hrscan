@@ -1,0 +1,8 @@
+Options +FollowSymLinks
+RewriteEngine On
+
+# อนุญาตให้เข้าถึงไฟล์รูปภาพ
+<FilesMatch "\.(jpg|jpeg|png|gif)$">
+    Order Allow,Deny
+    Allow from all
+</FilesMatch>

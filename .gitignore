@@ -1,0 +1,19 @@
+.DS_Store
+*.log
+*.tmp
+
+# Local/editor files
+.idea/
+.vscode/
+.cursor/
+
+# Runtime uploads and personal data
+uploads/teachers/*
+!uploads/teachers/.gitkeep
+
+# Database dumps with real data should not be committed
+database/jomthong_attendance.sql
+
+# Environment-specific files
+.env
+.env.*

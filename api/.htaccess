@@ -1,0 +1,13 @@
+# API Configuration
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+</IfModule>
+
+# Allow access to PHP files
+<FilesMatch "\.php$">
+    Order allow,deny
+    Allow from all
+</FilesMatch>
+
+# Set default charset
+AddDefaultCharset UTF-8
