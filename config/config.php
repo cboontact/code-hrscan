@@ -539,13 +539,19 @@ function resolveAttendanceSummaryCategory($record, $lateThreshold)
     $displayStatus = resolveAttendanceDisplayStatus($record, $lateThreshold);
     $statusCode = $displayStatus['code'];
     $remark = trim((string) ($record['remark'] ?? ''));
+    $remarkCategory = 'other';
+    if (strpos($remark, 'ลากิจ') !== false) {
+        $remarkCategory = 'personal_leave';
+    } elseif (strpos($remark, 'ลาป่วย') !== false) {
+        $remarkCategory = 'sick_leave';
+    }
 
     $manualRemarkCategory = null;
     if ($remark !== ''
         && !isApprovedLateRemark($remark)
         && $remark !== LATE_NO_CHECK_OUT_REMARK
     ) {
-        $manualRemarkCategory = strpos($remark, 'ลา') !== false ? 'leave' : 'other';
+        $manualRemarkCategory = $remarkCategory;
     }
 
     if (in_array($statusCode, ['present', 'on_time_checked_out', 'on_time_no_check_out'], true)) {
@@ -567,7 +573,7 @@ function resolveAttendanceSummaryCategory($record, $lateThreshold)
             return 'absent';
         }
 
-        return strpos($remark, 'ลา') !== false ? 'leave' : 'other';
+        return $remarkCategory;
     }
 
     return 'other';

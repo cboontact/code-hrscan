@@ -62,7 +62,8 @@ foreach ($teachers as $teacher) {
     $summaryMap[$teacherId] = [
         'present_count' => 0,
         'late_count' => 0,
-        'leave_count' => 0,
+        'personal_leave_count' => 0,
+        'sick_leave_count' => 0,
         'absent_count' => 0,
         'other_count' => 0,
         'remarks' => []
@@ -96,8 +97,10 @@ foreach ($detailRows as $row) {
         $summaryMap[$teacherId]['present_count']++;
     } elseif ($category === 'late') {
         $summaryMap[$teacherId]['late_count']++;
-    } elseif ($category === 'leave') {
-        $summaryMap[$teacherId]['leave_count']++;
+    } elseif ($category === 'personal_leave') {
+        $summaryMap[$teacherId]['personal_leave_count']++;
+    } elseif ($category === 'sick_leave') {
+        $summaryMap[$teacherId]['sick_leave_count']++;
     } elseif ($category === 'absent') {
         $summaryMap[$teacherId]['absent_count']++;
     } else {
@@ -109,7 +112,7 @@ $rows = [];
 foreach ($teachers as $teacher) {
     $teacherId = (int)$teacher['id'];
     $counts = $summaryMap[$teacherId];
-    $total = $counts['present_count'] + $counts['late_count'] + $counts['leave_count'] + $counts['absent_count'] + $counts['other_count'];
+    $total = $counts['present_count'] + $counts['late_count'] + $counts['personal_leave_count'] + $counts['sick_leave_count'] + $counts['absent_count'] + $counts['other_count'];
     $remarks = array_values(array_unique(array_filter($counts['remarks'])));
     $rows[] = array_merge($teacher, $counts, [
         'total' => $total,
@@ -191,11 +194,11 @@ $departmentLabel = $department !== '' ? $department : 'ทั้งหมด';
         th { background: #f3f4f6; text-align: center; }
         .left { text-align: left; }
         .center { text-align: center; }
-        .col-no { width: 6%; }
-        .col-name { width: 17%; }
-        .col-position { width: 14%; }
-        .col-count { width: 7%; }
-        .col-total { width: 8%; }
+        .col-no { width: 5%; }
+        .col-name { width: 24%; }
+        .col-position { width: 16%; }
+        .col-count { width: 8%; }
+        .col-total { width: 7%; }
         .print-btn {
             position: fixed; top: 16px; right: 16px; border: 0; border-radius: 8px;
             padding: 10px 14px; background: #16a34a; color: #fff; font-size: 15px; cursor: pointer;
@@ -231,6 +234,7 @@ $departmentLabel = $department !== '' ? $department : 'ทั้งหมด';
             <col class="col-count">
             <col class="col-count">
             <col class="col-count">
+            <col class="col-count">
             <col class="col-total">
         </colgroup>
         <thead>
@@ -240,7 +244,8 @@ $departmentLabel = $department !== '' ? $department : 'ทั้งหมด';
                 <th>ตำแหน่ง</th>
                 <th>มาตรงเวลา</th>
                 <th>มาสาย</th>
-                <th>ลา</th>
+                <th>ลากิจ</th>
+                <th>ลาป่วย</th>
                 <th>ขาด</th>
                 <th>อื่น ๆ</th>
                 <th>รวม</th>
@@ -248,7 +253,7 @@ $departmentLabel = $department !== '' ? $department : 'ทั้งหมด';
         </thead>
         <tbody>
             <?php if (empty($rows)): ?>
-                <tr><td colspan="9" class="center">ไม่พบข้อมูล</td></tr>
+                <tr><td colspan="10" class="center">ไม่พบข้อมูล</td></tr>
             <?php else: ?>
                 <?php $i = 1; foreach ($rows as $row): ?>
                     <tr>
@@ -257,7 +262,8 @@ $departmentLabel = $department !== '' ? $department : 'ทั้งหมด';
                         <td class="center"><?php echo htmlspecialchars(trim((string)($row['position'] ?? '')) !== '' ? $row['position'] : '-'); ?></td>
                         <td class="center"><?php echo (int)$row['present_count']; ?></td>
                         <td class="center"><?php echo (int)$row['late_count']; ?></td>
-                        <td class="center"><?php echo (int)$row['leave_count']; ?></td>
+                        <td class="center"><?php echo (int)$row['personal_leave_count']; ?></td>
+                        <td class="center"><?php echo (int)$row['sick_leave_count']; ?></td>
                         <td class="center"><?php echo (int)$row['absent_count']; ?></td>
                         <td class="center"><?php echo (int)$row['other_count']; ?></td>
                         <td class="center"><?php echo (int)$row['total']; ?></td>

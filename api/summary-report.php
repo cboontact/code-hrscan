@@ -67,13 +67,15 @@ try {
         $summaryMap[$teacherId] = [
             'present_count' => 0,
             'late_count' => 0,
-            'leave_count' => 0,
+            'personal_leave_count' => 0,
+            'sick_leave_count' => 0,
             'absent_count' => 0,
             'other_count' => 0,
             'details' => [
                 'present' => [],
                 'late' => [],
-                'leave' => [],
+                'personal_leave' => [],
+                'sick_leave' => [],
                 'absent' => [],
                 'other' => []
             ]
@@ -128,11 +130,12 @@ try {
         $teacherId = (int)$record['id'];
         $record['present_count'] = $summaryMap[$teacherId]['present_count'];
         $record['late_count'] = $summaryMap[$teacherId]['late_count'];
-        $record['leave_count'] = $summaryMap[$teacherId]['leave_count'];
+        $record['personal_leave_count'] = $summaryMap[$teacherId]['personal_leave_count'];
+        $record['sick_leave_count'] = $summaryMap[$teacherId]['sick_leave_count'];
         $record['absent_count'] = $summaryMap[$teacherId]['absent_count'];
         $record['other_count'] = $summaryMap[$teacherId]['other_count'];
         $record['details'] = $summaryMap[$teacherId]['details'];
-        $record['total_records'] = $record['present_count'] + $record['late_count'] + $record['leave_count'] + $record['absent_count'] + $record['other_count'];
+        $record['total_records'] = $record['present_count'] + $record['late_count'] + $record['personal_leave_count'] + $record['sick_leave_count'] + $record['absent_count'] + $record['other_count'];
     }
     unset($record);
     

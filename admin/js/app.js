@@ -2536,7 +2536,7 @@ async function loadSummaryReport() {
         summaryLog('Invalid date range', { startDate, endDate });
         tbody.innerHTML = `
             <tr>
-                <td colspan="9" class="px-6 py-8 text-center text-red-500">
+                <td colspan="10" class="px-6 py-8 text-center text-red-500">
                     <i class="fas fa-exclamation-circle text-3xl mb-2"></i>
                     <p>ช่วงวันที่ไม่ถูกต้อง: วันที่เริ่มต้องไม่มากกว่าวันที่สิ้นสุด</p>
                 </td>
@@ -2547,7 +2547,7 @@ async function loadSummaryReport() {
     
     tbody.innerHTML = `
         <tr>
-            <td colspan="9" class="px-6 py-8 text-center text-gray-500">
+            <td colspan="10" class="px-6 py-8 text-center text-gray-500">
                 <i class="fas fa-spinner fa-spin text-3xl mb-2"></i>
                 <p>กำลังโหลดข้อมูล...</p>
             </td>
@@ -2574,7 +2574,7 @@ async function loadSummaryReport() {
             summaryLog('Summary API failed', result);
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="px-6 py-8 text-center text-red-500">
+                    <td colspan="10" class="px-6 py-8 text-center text-red-500">
                         <i class="fas fa-exclamation-circle text-3xl mb-2"></i>
                         <p>${result.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล'}</p>
                     </td>
@@ -2584,7 +2584,7 @@ async function loadSummaryReport() {
             summaryRecordsCache = [];
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="px-6 py-8 text-center text-gray-500">
+                    <td colspan="10" class="px-6 py-8 text-center text-gray-500">
                         <i class="fas fa-inbox text-3xl mb-2"></i>
                         <p>ไม่พบข้อมูล</p>
                     </td>
@@ -2597,7 +2597,7 @@ async function loadSummaryReport() {
         summaryLog('loadSummaryReport exception', error);
         tbody.innerHTML = `
             <tr>
-                <td colspan="9" class="px-6 py-8 text-center text-red-500">
+                <td colspan="10" class="px-6 py-8 text-center text-red-500">
                     <i class="fas fa-exclamation-circle text-3xl mb-2"></i>
                     <p>เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
                 </td>
@@ -2640,7 +2640,8 @@ function getSummaryDetailsByCategory(record, category) {
     const merged = []
         .concat(record.details.present || [])
         .concat(record.details.late || [])
-        .concat(record.details.leave || [])
+        .concat(record.details.personal_leave || [])
+        .concat(record.details.sick_leave || [])
         .concat(record.details.absent || [])
         .concat(record.details.other || []);
 
@@ -2696,7 +2697,7 @@ function renderEmptySummaryRows(message) {
     const tbody = document.getElementById('summary-table-body');
     tbody.innerHTML = `
         <tr>
-            <td colspan="9" class="px-6 py-8 text-center text-gray-500">
+            <td colspan="10" class="px-6 py-8 text-center text-gray-500">
                 <i class="fas fa-inbox text-3xl mb-2"></i>
                 <p>${message}</p>
             </td>
@@ -2724,15 +2725,16 @@ function renderSummaryReportTable(records) {
         const teacherId = Number.parseInt(record.id, 10) || 0;
         const presentCount = Number.parseInt(record.present_count, 10) || 0;
         const lateCount = Number.parseInt(record.late_count, 10) || 0;
-        const leaveCount = Number.parseInt(record.leave_count, 10) || 0;
+        const personalLeaveCount = Number.parseInt(record.personal_leave_count, 10) || 0;
+        const sickLeaveCount = Number.parseInt(record.sick_leave_count, 10) || 0;
         const absentCount = Number.parseInt(record.absent_count, 10) || 0;
         const otherCount = Number.parseInt(record.other_count, 10) || 0;
-        const total = presentCount + lateCount + leaveCount + absentCount + otherCount;
+        const total = presentCount + lateCount + personalLeaveCount + sickLeaveCount + absentCount + otherCount;
         
         return `
             <tr class="hover:bg-gray-50">
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${index + 1}</td>
-                <td class="px-6 py-4 whitespace-nowrap">
+                <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900">${index + 1}</td>
+                <td class="px-3 py-4 whitespace-nowrap">
                     <div class="flex items-center">
                         <div class="flex-shrink-0 h-10 w-10">
                             <img class="h-10 w-10 rounded-full object-cover" 
@@ -2740,30 +2742,33 @@ function renderSummaryReportTable(records) {
                                  alt="${record.first_name} ${record.last_name}"
                                  onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(record.first_name + ' ' + record.last_name)}&size=80&background=random'">
                         </div>
-                        <div class="ml-4">
+                        <div class="ml-2">
                             <div class="text-sm font-medium text-gray-900">
                                 ${record.first_name} ${record.last_name}
                             </div>
                         </div>
                     </div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${record.department}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-center">
+                <td class="px-3 py-4 whitespace-normal text-sm text-gray-500">${record.department}</td>
+                <td class="px-3 py-4 whitespace-nowrap text-center">
                     ${renderSummaryCountButton(presentCount, teacherId, 'present', 'bg-green-100 text-green-800')}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-center">
+                <td class="px-3 py-4 whitespace-nowrap text-center">
                     ${renderSummaryCountButton(lateCount, teacherId, 'late', 'bg-yellow-100 text-yellow-800')}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-center">
-                    ${renderSummaryCountButton(leaveCount, teacherId, 'leave', 'bg-blue-100 text-blue-800')}
+                <td class="px-3 py-4 whitespace-nowrap text-center">
+                    ${renderSummaryCountButton(personalLeaveCount, teacherId, 'personal_leave', 'bg-blue-100 text-blue-800')}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-center">
+                <td class="px-3 py-4 whitespace-nowrap text-center">
+                    ${renderSummaryCountButton(sickLeaveCount, teacherId, 'sick_leave', 'bg-orange-100 text-orange-800')}
+                </td>
+                <td class="px-3 py-4 whitespace-nowrap text-center">
                     ${renderSummaryCountButton(absentCount, teacherId, 'absent', 'bg-red-100 text-red-800')}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-center">
+                <td class="px-3 py-4 whitespace-nowrap text-center">
                     ${renderSummaryCountButton(otherCount, teacherId, 'other', 'bg-purple-100 text-purple-800')}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-center">
+                <td class="px-3 py-4 whitespace-nowrap text-center">
                     ${renderSummaryCountButton(total, teacherId, 'all', 'bg-gray-100 text-gray-800')}
                 </td>
             </tr>
@@ -2781,7 +2786,8 @@ function getSummaryCategoryLabel(category) {
     const labels = {
         present: 'มาตรงเวลา',
         late: 'มาสาย',
-        leave: 'ลา',
+        personal_leave: 'ลากิจ',
+        sick_leave: 'ลาป่วย',
         absent: 'ขาด',
         other: 'อื่น ๆ',
         all: 'รวม'

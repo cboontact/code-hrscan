@@ -598,20 +598,21 @@ header('Expires: 0');
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
                                 <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">ลำดับ</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">ชื่อ-นามสกุล</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">กลุ่มสาระ / แผนก</th>
-                                    <th class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">มาตรงเวลา</th>
-                                    <th class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">มาสาย</th>
-                                    <th class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">ลา</th>
-                                    <th class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">ขาด</th>
-                                    <th class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">อื่น ๆ</th>
-                                    <th class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">รวม</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider">ลำดับ</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider">ชื่อ-นามสกุล</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium uppercase tracking-wider">กลุ่มสาระ / แผนก</th>
+                                    <th class="px-3 py-3 text-center text-xs font-medium uppercase tracking-wider">มาตรงเวลา</th>
+                                    <th class="px-3 py-3 text-center text-xs font-medium uppercase tracking-wider">มาสาย</th>
+                                    <th class="px-3 py-3 text-center text-xs font-medium uppercase tracking-wider">ลากิจ</th>
+                                    <th class="px-3 py-3 text-center text-xs font-medium uppercase tracking-wider">ลาป่วย</th>
+                                    <th class="px-3 py-3 text-center text-xs font-medium uppercase tracking-wider">ขาด</th>
+                                    <th class="px-3 py-3 text-center text-xs font-medium uppercase tracking-wider">อื่น ๆ</th>
+                                    <th class="px-3 py-3 text-center text-xs font-medium uppercase tracking-wider">รวม</th>
                                 </tr>
                             </thead>
                             <tbody id="summary-table-body" class="bg-white divide-y divide-gray-200">
                                 <tr>
-                                    <td colspan="9" class="px-6 py-8 text-center text-gray-500">
+                                    <td colspan="10" class="px-6 py-8 text-center text-gray-500">
                                         <i class="fas fa-spinner fa-spin text-3xl mb-2"></i>
                                         <p>กำลังโหลดข้อมูล...</p>
                                     </td>

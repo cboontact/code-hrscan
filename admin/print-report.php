@@ -89,7 +89,7 @@ foreach ($allRecords as $record) {
 
     if ($category === 'present' || $category === 'late') {
         $presentRecords[] = $record;
-    } elseif ($category === 'leave' || $category === 'other') {
+    } elseif (in_array($category, ['personal_leave', 'sick_leave', 'other'], true)) {
         $remarkRecords[] = $record;
 
         $remarkType = trim((string) ($record['remark'] ?? ''));
