@@ -17,3 +17,12 @@ database/jomthong_attendance.sql
 # Environment-specific files
 .env
 .env.*
+
+# Local backups of production files taken before each FTP deploy
+deploy-backups/
+
+# Host connection settings for scripts/deploy-ftp.sh (no passwords, still kept out of git)
+scripts/deploy.env
+
+# Exported personnel data
+exports/

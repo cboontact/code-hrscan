@@ -106,7 +106,7 @@ try {
             continue;
         }
 
-        $timeRules = getAttendanceTimeRules($db, $row['attendance_date']);
+        $timeRules = getAttendanceTimeRules($db, $row['attendance_date'], $teacherId);
         $displayStatus = resolveAttendanceDisplayStatus($row, $timeRules['check_in_late']);
         $remark = trim((string)($row['remark'] ?? ''));
         $status = $row['status'] ?? '';

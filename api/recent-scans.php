@@ -12,6 +12,7 @@ try {
     
     $query = "SELECT 
                 ar.id,
+                ar.teacher_id,
                 ar.check_in_time,
                 ar.check_out_time,
                 ar.status,
@@ -34,12 +35,13 @@ try {
     $stmt->execute([':today' => $today]);
     $records = $stmt->fetchAll();
 
-    $timeRules = getAttendanceTimeRules($db, $today);
-    $records = array_map(function ($record) use ($timeRules) {
+    $records = array_map(function ($record) use ($db, $today) {
+        $timeRules = getAttendanceTimeRules($db, $today, $record['teacher_id']);
         $displayStatus = resolveAttendanceDisplayStatus($record, $timeRules['check_in_late']);
         $record['status'] = $displayStatus['code'];
         $record['base_status'] = $displayStatus['base_status'];
         $record['status_text'] = $displayStatus['text'];
+        unset($record['teacher_id']);
         return $record;
     }, $records);
     

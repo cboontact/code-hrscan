@@ -47,7 +47,7 @@ try {
     }
     
     $attendanceDate = $input['attendance_date'];
-    $timeRules = getAttendanceTimeRules($db, $attendanceDate);
+    $timeRules = getAttendanceTimeRules($db, $attendanceDate, $input['teacher_id']);
 
     $checkInTimeOnly = normalizeTimeValue($input['check_in_time']);
     if (!$checkInTimeOnly) {

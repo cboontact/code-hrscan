@@ -772,6 +772,7 @@ header('Expires: 0');
                                     <th class="px-4 py-3">ชื่อกฎ</th>
                                     <th class="px-4 py-3">ช่วงวันที่</th>
                                     <th class="px-4 py-3">วันที่ใช้</th>
+                                    <th class="px-4 py-3">ใช้กับ</th>
                                     <th class="px-4 py-3">เวลาเข้า</th>
                                     <th class="px-4 py-3">เวลาออก</th>
                                     <th class="px-4 py-3">หมายเหตุ</th>
@@ -920,6 +921,32 @@ header('Expires: 0');
                             <label class="flex items-center gap-2"><input type="checkbox" class="time-rule-weekday rounded border-gray-300 text-amber-600 focus:ring-amber-500" value="6">เสาร์</label>
                             <label class="flex items-center gap-2"><input type="checkbox" class="time-rule-weekday rounded border-gray-300 text-amber-600 focus:ring-amber-500" value="7">อาทิตย์</label>
                         </div>
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-gray-700 font-semibold mb-3">
+                            <i class="fas fa-users"></i> ใช้กับบุคลากร
+                        </label>
+                        <div class="flex flex-wrap gap-6 text-sm text-gray-700">
+                            <label class="inline-flex items-center gap-2">
+                                <input type="radio" name="time-rule-scope" value="all" class="text-amber-600 focus:ring-amber-500" checked>
+                                <span>ทุกคน (กฎทั่วไป)</span>
+                            </label>
+                            <label class="inline-flex items-center gap-2">
+                                <input type="radio" name="time-rule-scope" value="selected" class="text-amber-600 focus:ring-amber-500">
+                                <span>เฉพาะบุคลากรที่เลือก</span>
+                            </label>
+                        </div>
+                        <div id="time-rule-teacher-picker" class="hidden mt-3">
+                            <div class="flex flex-col md:flex-row md:items-center gap-3 mb-2">
+                                <input type="text" id="time-rule-teacher-search"
+                                       class="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+                                       placeholder="ค้นหาชื่อหรือกลุ่มสาระ">
+                                <span id="time-rule-teacher-count" class="text-sm font-semibold text-amber-700 whitespace-nowrap">เลือกแล้ว 0 คน</span>
+                            </div>
+                            <div id="time-rule-teacher-list" class="max-h-56 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white"></div>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-2">กฎที่เลือกเฉพาะบุคลากรจะถูกใช้กับคนที่เลือกก่อนกฎทั่วไปเสมอ และไม่มีผลกับคนอื่น</p>
                     </div>
 
                     <div>

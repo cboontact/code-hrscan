@@ -41,7 +41,7 @@ try {
         }
         
         // อัพเดทหมายเหตุ
-        $timeRules = getAttendanceTimeRules($db, $checkRecord['attendance_date']);
+        $timeRules = getAttendanceTimeRules($db, $checkRecord['attendance_date'], $checkRecord['teacher_id']);
         $nextRemark = removeAttendanceRemarkTags($input['remark'] ?? null, [LATE_NO_CHECK_OUT_REMARK]);
         $nextStatus = $checkRecord['status'];
         if (!empty($checkRecord['check_in_time']) && in_array($checkRecord['status'], ['present', 'late'], true)) {
@@ -118,7 +118,7 @@ try {
         
         if ($existingRecord) {
             // ถ้ามี record แล้ว ให้อัพเดทหมายเหตุ
-            $timeRules = getAttendanceTimeRules($db, $input['attendance_date']);
+            $timeRules = getAttendanceTimeRules($db, $input['attendance_date'], $input['teacher_id']);
             $nextStatus = $existingRecord['status'];
             if (!empty($existingRecord['check_in_time']) && in_array($existingRecord['status'], ['present', 'late'], true)) {
                 $nextStatus = resolveAttendanceCheckInStatus(

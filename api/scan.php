@@ -27,7 +27,7 @@ try {
     $today = date('Y-m-d');
     $currentTime = date('Y-m-d H:i:s');
     $currentTimeOnly = date('H:i:s');
-    $timeRules = getAttendanceTimeRules($db, $today);
+    $timeRules = getAttendanceTimeRules($db, $today, $teacher['id']);
     $checkInStart = $timeRules['check_in_start'];
     $checkInOnTime = $timeRules['check_in_late'];
     $checkOutStart = $timeRules['check_out_start'];

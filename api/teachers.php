@@ -404,6 +404,15 @@ if ($action === 'delete' && $method === 'POST' && isset($_GET['id'])) {
         $stmt = $db->prepare($query);
         $stmt->execute([':id' => $_GET['id']]);
 
+        // ลบการผูกกฎเวลาเฉพาะบุคคลของครูคนนี้ (ถ้ามี)
+        try {
+            ensureAttendanceTimeRulesTable($db);
+            $ruleStmt = $db->prepare("DELETE FROM attendance_time_rule_teachers WHERE teacher_id = :id");
+            $ruleStmt->execute([':id' => $_GET['id']]);
+        } catch (Exception $ruleException) {
+            error_log("Delete teacher time rule links error: " . $ruleException->getMessage());
+        }
+
         logAdminAction(
             $db,
             'DELETE_TEACHER',

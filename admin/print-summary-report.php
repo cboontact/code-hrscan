@@ -90,7 +90,7 @@ foreach ($detailRows as $row) {
     if ($remark !== '') {
         $summaryMap[$teacherId]['remarks'][] = $remark;
     }
-    $timeRules = getAttendanceTimeRules($db, $row['attendance_date']);
+    $timeRules = getAttendanceTimeRules($db, $row['attendance_date'], $teacherId);
     $category = resolveAttendanceSummaryCategory($row, $timeRules['check_in_late']);
 
     if ($category === 'present') {

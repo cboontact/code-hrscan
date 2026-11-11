@@ -2987,6 +2987,8 @@ let editingCalendarId = null;
 let attendanceTimeRulesCache = [];
 let effectiveTimeRuleToday = null;
 let editingTimeRuleId = null;
+let timeRuleTeacherOptions = [];
+const timeRuleSelectedTeacherIds = new Set();
 
 const WEEKDAY_LABELS = {
     1: 'จ.',
@@ -3017,6 +3019,75 @@ function normalizeTimeInputValue(value) {
     return raw.length === 8 ? raw.slice(0, 5) : raw;
 }
 
+function getTimeRuleScope() {
+    return document.querySelector('input[name="time-rule-scope"]:checked')?.value === 'selected' ? 'selected' : 'all';
+}
+
+function setTimeRuleScope(scope) {
+    document.querySelectorAll('input[name="time-rule-scope"]').forEach(input => {
+        input.checked = input.value === (scope === 'selected' ? 'selected' : 'all');
+    });
+    syncTimeRuleTeacherPickerState();
+}
+
+function syncTimeRuleTeacherPickerState() {
+    const picker = document.getElementById('time-rule-teacher-picker');
+    if (!picker) return;
+    picker.classList.toggle('hidden', getTimeRuleScope() !== 'selected');
+    renderTimeRuleTeacherList();
+}
+
+function setTimeRuleSelectedTeachers(teacherIds = []) {
+    timeRuleSelectedTeacherIds.clear();
+    teacherIds.forEach(id => {
+        const parsed = Number.parseInt(id, 10);
+        if (parsed > 0) {
+            timeRuleSelectedTeacherIds.add(parsed);
+        }
+    });
+    const searchInput = document.getElementById('time-rule-teacher-search');
+    if (searchInput) searchInput.value = '';
+}
+
+function renderTimeRuleTeacherList() {
+    const list = document.getElementById('time-rule-teacher-list');
+    const countEl = document.getElementById('time-rule-teacher-count');
+    if (!list) return;
+
+    if (countEl) {
+        countEl.textContent = `เลือกแล้ว ${timeRuleSelectedTeacherIds.size} คน`;
+    }
+
+    const keyword = (document.getElementById('time-rule-teacher-search')?.value || '').trim().toLowerCase();
+    const options = timeRuleTeacherOptions
+        .filter(teacher => {
+            if (!keyword) return true;
+            return `${teacher.name || ''} ${teacher.department || ''}`.toLowerCase().includes(keyword);
+        })
+        // แสดงคนที่เลือกไว้แล้วก่อน
+        .sort((a, b) => Number(timeRuleSelectedTeacherIds.has(b.id)) - Number(timeRuleSelectedTeacherIds.has(a.id)));
+
+    if (!options.length) {
+        list.innerHTML = '<div class="px-4 py-6 text-center text-sm text-gray-500">ไม่พบรายชื่อบุคลากร</div>';
+        return;
+    }
+
+    list.innerHTML = options.map(teacher => {
+        const checked = timeRuleSelectedTeacherIds.has(teacher.id) ? 'checked' : '';
+        const inactive = teacher.status !== 'active'
+            ? '<span class="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">ไม่ใช้งาน</span>'
+            : '';
+        return `
+            <label class="flex items-center gap-3 px-4 py-2 text-sm hover:bg-amber-50 cursor-pointer">
+                <input type="checkbox" class="time-rule-teacher-checkbox rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                       value="${teacher.id}" ${checked}>
+                <span class="flex-1 text-gray-800">${escapeHtml(teacher.name || '-')}${inactive}</span>
+                <span class="text-xs text-gray-500">${escapeHtml(teacher.department || '')}</span>
+            </label>
+        `;
+    }).join('');
+}
+
 function clearTimeRuleForm() {
     document.getElementById('time-rule-id').value = '';
     document.getElementById('time-rule-name').value = '';
@@ -3033,6 +3104,8 @@ function clearTimeRuleForm() {
     document.querySelectorAll('.time-rule-weekday').forEach(input => {
         input.checked = true;
     });
+    setTimeRuleSelectedTeachers([]);
+    setTimeRuleScope('all');
     syncTimeRuleDateRangeState();
 }
 
@@ -3059,6 +3132,10 @@ function fillTimeRuleForm(rule) {
     document.querySelectorAll('.time-rule-weekday').forEach(input => {
         input.checked = weekdaySet.has(input.value);
     });
+
+    const ruleTeacherIds = Array.isArray(rule.teacher_ids) ? rule.teacher_ids : [];
+    setTimeRuleSelectedTeachers(ruleTeacherIds);
+    setTimeRuleScope(Number.parseInt(rule.applies_to_all ?? 1, 10) === 1 ? 'all' : 'selected');
 
     syncTimeRuleDateRangeState();
 }
@@ -3112,7 +3189,7 @@ function renderEffectiveTimeRuleSummary() {
         : '';
 
     el.innerHTML = `
-        <div><span class="font-semibold text-gray-700">กฎที่ใช้วันนี้:</span> ${escapeHtml(effectiveTimeRuleToday.rule_name || 'ค่ามาตรฐาน')}</div>
+        <div><span class="font-semibold text-gray-700">กฎทั่วไปที่ใช้วันนี้:</span> ${escapeHtml(effectiveTimeRuleToday.rule_name || 'ค่ามาตรฐาน')}</div>
         <div class="text-xs text-gray-500">
             เข้า ${escapeHtml(normalizeTimeInputValue(effectiveTimeRuleToday.check_in_start))} /
             สาย ${escapeHtml(normalizeTimeInputValue(effectiveTimeRuleToday.check_in_late))} /
@@ -3148,6 +3225,12 @@ function renderTimeRulesTable() {
             ? `${escapeHtml(formatThaiShortDate(rule.start_date))} - ${escapeHtml(formatThaiShortDate(rule.end_date))}`
             : '<span class="text-gray-500">ถาวร</span>';
         const note = rule.note ? escapeHtml(rule.note) : '<span class="text-gray-400">-</span>';
+        const ruleTeachers = Array.isArray(rule.teachers) ? rule.teachers : [];
+        const isPersonalRule = Number.parseInt(rule.applies_to_all ?? 1, 10) !== 1;
+        const appliesTo = isPersonalRule
+            ? `<span class="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">เฉพาะ ${ruleTeachers.length} คน</span>
+               <div class="text-xs text-gray-600 mt-1">${escapeHtml(ruleTeachers.slice(0, 3).map(teacher => teacher.name).join(', '))}${ruleTeachers.length > 3 ? ` และอีก ${ruleTeachers.length - 3} คน` : ''}</div>`
+            : '<span class="text-gray-500">ทุกคน</span>';
         const actions = canManage
             ? `
                 <button onclick="startEditTimeRule(${rule.id})"
@@ -3169,6 +3252,7 @@ function renderTimeRulesTable() {
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-700">${dateRange}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(formatTimeRuleWeekdays(rule.weekdays))}</td>
+                <td class="px-4 py-3 text-sm text-gray-700 max-w-xs">${appliesTo}</td>
                 <td class="px-4 py-3 text-sm text-gray-700">
                     เริ่ม ${escapeHtml(normalizeTimeInputValue(rule.check_in_start))}<br>
                     สาย ${escapeHtml(normalizeTimeInputValue(rule.check_in_late))}
@@ -3319,6 +3403,7 @@ async function fetchAcademicCalendars(forceReload = false) {
     academicCalendarsCache = Array.isArray(result.data.calendars) ? result.data.calendars : [];
     attendanceTimeRulesCache = Array.isArray(result.data.time_rules) ? result.data.time_rules : [];
     effectiveTimeRuleToday = result.data.effective_time_rule_today || null;
+    timeRuleTeacherOptions = Array.isArray(result.data.time_rule_teacher_options) ? result.data.time_rule_teacher_options : [];
     const active = result.data.active_calendar || academicCalendarsCache.find(item => Number.parseInt(item.is_active, 10) === 1);
     activeAcademicCalendarId = active ? Number.parseInt(active.id, 10) : null;
 
@@ -3665,6 +3750,29 @@ document.getElementById('time-rule-modal-close').addEventListener('click', () =>
     setTimeRuleModalOpen(false);
 });
 
+document.querySelectorAll('input[name="time-rule-scope"]').forEach(input => {
+    input.addEventListener('change', syncTimeRuleTeacherPickerState);
+});
+
+document.getElementById('time-rule-teacher-search')?.addEventListener('input', renderTimeRuleTeacherList);
+
+document.getElementById('time-rule-teacher-list')?.addEventListener('change', (e) => {
+    const checkbox = e.target.closest('.time-rule-teacher-checkbox');
+    if (!checkbox) return;
+
+    const teacherId = Number.parseInt(checkbox.value, 10);
+    if (checkbox.checked) {
+        timeRuleSelectedTeacherIds.add(teacherId);
+    } else {
+        timeRuleSelectedTeacherIds.delete(teacherId);
+    }
+
+    const countEl = document.getElementById('time-rule-teacher-count');
+    if (countEl) {
+        countEl.textContent = `เลือกแล้ว ${timeRuleSelectedTeacherIds.size} คน`;
+    }
+});
+
 document.getElementById('time-rule-form').addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -3683,8 +3791,17 @@ document.getElementById('time-rule-form').addEventListener('submit', async (e) =
             return;
         }
 
+        const applyScope = getTimeRuleScope();
+        const teacherIds = applyScope === 'selected' ? Array.from(timeRuleSelectedTeacherIds) : [];
+        if (applyScope === 'selected' && !teacherIds.length) {
+            showNotification('กรุณาเลือกบุคลากรอย่างน้อย 1 คน', 'error');
+            return;
+        }
+
         const useDateRange = document.getElementById('time-rule-use-date-range').checked;
         const payload = {
+            apply_scope: applyScope,
+            teacher_ids: teacherIds,
             rule_name: document.getElementById('time-rule-name').value.trim(),
             note: document.getElementById('time-rule-note').value.trim(),
             start_date: useDateRange ? document.getElementById('time-rule-start-date').value : '',

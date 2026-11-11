@@ -709,6 +709,29 @@ function ensureAttendanceTimeRulesTable($db)
     }
 
     try {
+        // applies_to_all = 1 กฎทั่วไปใช้กับทุกคน, 0 = กฎเฉพาะบุคลากรที่ผูกไว้
+        $stmt = $db->query("SHOW COLUMNS FROM attendance_time_rules LIKE 'applies_to_all'");
+        if (!($stmt && $stmt->fetch(PDO::FETCH_ASSOC))) {
+            $db->exec("ALTER TABLE attendance_time_rules ADD COLUMN applies_to_all TINYINT(1) NOT NULL DEFAULT 1 AFTER priority");
+        }
+    } catch (Exception $e) {
+        error_log("Ensure attendance_time_rules applies_to_all column error: " . $e->getMessage());
+    }
+
+    try {
+        // บุคลากรที่ผูกกับกฎเวลาเฉพาะบุคคล
+        $db->exec("CREATE TABLE IF NOT EXISTS attendance_time_rule_teachers (
+                    rule_id INT NOT NULL,
+                    teacher_id INT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (rule_id, teacher_id),
+                    INDEX idx_rule_teacher_teacher (teacher_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    } catch (Exception $e) {
+        error_log("Ensure attendance_time_rule_teachers table error: " . $e->getMessage());
+    }
+
+    try {
         $countStmt = $db->query("SELECT COUNT(*) AS total FROM attendance_time_rules");
         $count = (int) ($countStmt->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
 
@@ -824,18 +847,7 @@ function getAttendanceTimeRuleRows($db)
 
     ensureAttendanceTimeRulesTable($db);
 
-    $stmt = $db->query("SELECT id,
-                               rule_name,
-                               note,
-                               start_date,
-                               end_date,
-                               weekdays,
-                               check_in_start,
-                               check_in_late,
-                               check_out_start,
-                               check_out_end,
-                               priority,
-                               is_active
+    $stmt = $db->query("SELECT *
                         FROM attendance_time_rules
                         WHERE is_active = 1
                         ORDER BY
@@ -847,18 +859,108 @@ function getAttendanceTimeRuleRows($db)
                             END ASC,
                             id DESC");
 
-    $cachedRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $teacherIdsByRule = getAttendanceTimeRuleTeacherMap($db);
+    foreach ($rows as &$row) {
+        $row['teacher_ids'] = $teacherIdsByRule[(int) $row['id']] ?? [];
+        // กฎเฉพาะบุคคลที่ไม่มีรายชื่อเหลืออยู่จะไม่ถูกใช้กับใครเลย (ไม่กลายเป็นกฎทั่วไป)
+        $row['is_personal'] = isset($row['applies_to_all'])
+            ? ((int) $row['applies_to_all'] !== 1)
+            : !empty($row['teacher_ids']);
+    }
+    unset($row);
+
+    $cachedRows = $rows;
 
     return $cachedRows;
 }
 
-function getAttendanceTimeRules($db = null, $attendanceDate = null)
+/**
+ * คืนค่า [rule_id => [teacher_id, ...]] ของกฎเวลาที่ผูกกับบุคลากรเฉพาะคน
+ */
+function getAttendanceTimeRuleTeacherMap($db)
+{
+    $map = [];
+
+    try {
+        $stmt = $db->query("SELECT rule_id, teacher_id FROM attendance_time_rule_teachers ORDER BY rule_id, teacher_id");
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $map[(int) $row['rule_id']][] = (int) $row['teacher_id'];
+        }
+    } catch (Exception $e) {
+        error_log("Load attendance_time_rule_teachers error: " . $e->getMessage());
+    }
+
+    return $map;
+}
+
+/**
+ * คืนค่า [teacher_id => check_in_late] เฉพาะบุคลากรที่มีกฎเวลาเฉพาะบุคคลมีผลในวันที่ระบุ
+ */
+function getAttendanceLateThresholdOverrides($db, $attendanceDate)
+{
+    $overrides = [];
+
+    try {
+        $teacherIds = [];
+        foreach (getAttendanceTimeRuleRows($db) as $row) {
+            foreach ($row['teacher_ids'] as $teacherId) {
+                $teacherIds[(int) $teacherId] = true;
+            }
+        }
+
+        foreach (array_keys($teacherIds) as $teacherId) {
+            $rules = getAttendanceTimeRules($db, $attendanceDate, $teacherId);
+            if (!empty($rules['is_personal'])) {
+                $overrides[$teacherId] = $rules['check_in_late'];
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Resolve late threshold overrides error: " . $e->getMessage());
+    }
+
+    return $overrides;
+}
+
+/**
+ * สร้าง SQL expression ของเวลาเริ่มมาสายรายบุคคล (ใช้ placeholder :late_threshold เป็นค่าทั่วไป)
+ */
+function buildLateThresholdSql(array $overrides, $teacherIdColumn = 't.id')
+{
+    if (empty($overrides)) {
+        return ':late_threshold';
+    }
+
+    $cases = '';
+    foreach ($overrides as $teacherId => $threshold) {
+        $time = normalizeTimeValue($threshold);
+        if (!$time) {
+            continue;
+        }
+        $cases .= ' WHEN ' . (int) $teacherId . " THEN '" . $time . "'";
+    }
+
+    if ($cases === '') {
+        return ':late_threshold';
+    }
+
+    return "CASE {$teacherIdColumn}{$cases} ELSE :late_threshold END";
+}
+
+/**
+ * หากฎเวลาที่มีผลในวันที่ระบุ
+ * - ถ้าส่ง $teacherId มา และมีกฎเฉพาะบุคคลที่ตรงเงื่อนไข จะใช้กฎเฉพาะบุคคลก่อนเสมอ
+ * - กฎที่ผูกกับบุคลากรจะไม่ถูกใช้กับคนที่ไม่อยู่ในรายชื่อ
+ */
+function getAttendanceTimeRules($db = null, $attendanceDate = null, $teacherId = null)
 {
     static $resolvedRulesCache = [];
 
     $dateBase = $attendanceDate ?: date('Y-m-d');
-    if (isset($resolvedRulesCache[$dateBase])) {
-        return $resolvedRulesCache[$dateBase];
+    $teacherId = ($teacherId !== null && (int) $teacherId > 0) ? (int) $teacherId : null;
+    $cacheKey = $dateBase . '|' . ($teacherId ?? 0);
+    if (isset($resolvedRulesCache[$cacheKey])) {
+        return $resolvedRulesCache[$cacheKey];
     }
 
     $timestamp = strtotime($dateBase);
@@ -878,7 +980,8 @@ function getAttendanceTimeRules($db = null, $attendanceDate = null)
         'priority' => 0,
         'weekdays' => normalizeWeekdayList([$dayOfWeek]),
         'start_date' => null,
-        'end_date' => null
+        'end_date' => null,
+        'is_personal' => false
     ];
 
     $rules = $fallback;
@@ -886,11 +989,36 @@ function getAttendanceTimeRules($db = null, $attendanceDate = null)
     if ($db) {
         try {
             $rows = getAttendanceTimeRuleRows($db);
+            $matchedRow = null;
+            $matchedGeneralRow = null;
             foreach ($rows as $row) {
                 if (!attendanceRuleAppliesToDate($row, $dateBase, $dayOfWeek)) {
                     continue;
                 }
 
+                $ruleTeacherIds = $row['teacher_ids'] ?? [];
+                if (!empty($row['is_personal'])) {
+                    // กฎเฉพาะบุคคล: ใช้ได้เฉพาะคนในรายชื่อ และชนะกฎทั่วไปเสมอ
+                    if ($teacherId !== null && in_array($teacherId, $ruleTeacherIds, true)) {
+                        $matchedRow = $row;
+                        break;
+                    }
+                    continue;
+                }
+
+                if ($matchedGeneralRow === null) {
+                    $matchedGeneralRow = $row;
+                    if ($teacherId === null) {
+                        break;
+                    }
+                }
+            }
+
+            if ($matchedRow === null) {
+                $matchedRow = $matchedGeneralRow;
+            }
+
+            foreach ($matchedRow !== null ? [$matchedRow] : [] as $row) {
                 $rules = [
                     'check_in_start' => normalizeTimeValue($row['check_in_start'], $fallback['check_in_start']),
                     'check_in_late' => normalizeTimeValue($row['check_in_late'], $fallback['check_in_late']),
@@ -902,9 +1030,9 @@ function getAttendanceTimeRules($db = null, $attendanceDate = null)
                     'priority' => (int) ($row['priority'] ?? 0),
                     'weekdays' => normalizeWeekdayList($row['weekdays'] ?? ''),
                     'start_date' => $row['start_date'] ?? null,
-                    'end_date' => $row['end_date'] ?? null
+                    'end_date' => $row['end_date'] ?? null,
+                    'is_personal' => !empty($row['is_personal'])
                 ];
-                break;
             }
         } catch (Exception $e) {
             error_log("Resolve attendance_time_rules error: " . $e->getMessage());
@@ -913,7 +1041,7 @@ function getAttendanceTimeRules($db = null, $attendanceDate = null)
 
     $rules['day_of_week'] = $dayOfWeek;
 
-    $resolvedRulesCache[$dateBase] = $rules;
+    $resolvedRulesCache[$cacheKey] = $rules;
 
     return $rules;
 }
@@ -923,7 +1051,7 @@ function autoMarkMissingCheckOut($db)
     try {
         $today = date('Y-m-d');
         $currentTime = date('H:i:s');
-        $repairQuery = "SELECT id, attendance_date, check_in_time, check_out_time, status, remark
+        $repairQuery = "SELECT id, teacher_id, attendance_date, check_in_time, check_out_time, status, remark
                         FROM attendance_records
                         WHERE (
                                 (status = 'incomplete' AND check_out_time IS NOT NULL)
@@ -943,7 +1071,7 @@ function autoMarkMissingCheckOut($db)
 
         foreach ($records as $record) {
             $attendanceDate = $record['attendance_date'] ?? $today;
-            $timeRules = getAttendanceTimeRules($db, $attendanceDate);
+            $timeRules = getAttendanceTimeRules($db, $attendanceDate, $record['teacher_id'] ?? null);
             $baseStatus = resolveAttendanceCheckInStatus(
                 $record['check_in_time'] ?? null,
                 $timeRules['check_in_late'],

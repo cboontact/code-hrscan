@@ -85,7 +85,8 @@ $absentRecords = []; // คนที่ไม่ลงเวลาและไ�
 $remarkStats = []; // สถิติแยกตามประเภทหมายเหตุ
 
 foreach ($allRecords as $record) {
-    $category = resolveAttendanceSummaryCategory($record, $timeRules['check_in_late']);
+    $recordTimeRules = getAttendanceTimeRules($db, $date, $record['teacher_id']);
+    $category = resolveAttendanceSummaryCategory($record, $recordTimeRules['check_in_late']);
 
     if ($category === 'present' || $category === 'late') {
         $presentRecords[] = $record;

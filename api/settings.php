@@ -286,7 +286,30 @@ function validateTimeRulePayload($payload)
         throw new Exception('ลำดับความสำคัญต้องอยู่ระหว่าง 0 ถึง 9999');
     }
 
+    $teacherIds = [];
+    $teacherIdsRaw = $payload['teacher_ids'] ?? [];
+    if (is_array($teacherIdsRaw)) {
+        foreach ($teacherIdsRaw as $teacherIdRaw) {
+            $teacherIdValue = (int)$teacherIdRaw;
+            if ($teacherIdValue > 0) {
+                $teacherIds[$teacherIdValue] = true;
+            }
+        }
+    }
+    $teacherIds = array_keys($teacherIds);
+    sort($teacherIds);
+
+    $applyScope = (string)($payload['apply_scope'] ?? (empty($teacherIds) ? 'all' : 'selected'));
+    if ($applyScope === 'selected' && empty($teacherIds)) {
+        throw new Exception('กรุณาเลือกบุคลากรที่ใช้กฎเวลานี้อย่างน้อย 1 คน');
+    }
+    if ($applyScope !== 'selected') {
+        $teacherIds = [];
+    }
+
     return [
+        'applies_to_all' => $applyScope === 'selected' ? 0 : 1,
+        'teacher_ids' => $teacherIds,
         'rule_name' => $ruleName,
         'note' => $note !== '' ? $note : null,
         'start_date' => $startDate,
@@ -316,6 +339,7 @@ function fetchAttendanceTimeRulesForSettings($db)
                                check_out_start,
                                check_out_end,
                                priority,
+                               applies_to_all,
                                is_active,
                                created_at,
                                updated_at
@@ -329,7 +353,80 @@ function fetchAttendanceTimeRulesForSettings($db)
                             END ASC,
                             id DESC");
 
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $rules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $teachersByRule = [];
+    $teacherStmt = $db->query("SELECT rt.rule_id,
+                                      t.id,
+                                      t.first_name,
+                                      t.last_name,
+                                      t.department,
+                                      t.status
+                               FROM attendance_time_rule_teachers rt
+                               INNER JOIN teachers t ON t.id = rt.teacher_id
+                               ORDER BY t.first_name ASC, t.last_name ASC");
+    foreach ($teacherStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $teachersByRule[(int)$row['rule_id']][] = [
+            'id' => (int)$row['id'],
+            'name' => trim($row['first_name'] . ' ' . $row['last_name']),
+            'department' => $row['department'],
+            'status' => $row['status']
+        ];
+    }
+
+    foreach ($rules as &$rule) {
+        $ruleTeachers = $teachersByRule[(int)$rule['id']] ?? [];
+        $rule['teachers'] = $ruleTeachers;
+        $rule['teacher_ids'] = array_map(static function ($teacher) {
+            return $teacher['id'];
+        }, $ruleTeachers);
+    }
+    unset($rule);
+
+    return $rules;
+}
+
+function saveAttendanceTimeRuleTeachers($db, $ruleId, array $teacherIds)
+{
+    $validIds = [];
+    if (!empty($teacherIds)) {
+        $placeholders = implode(',', array_fill(0, count($teacherIds), '?'));
+        $checkStmt = $db->prepare("SELECT id FROM teachers WHERE id IN ({$placeholders})");
+        $checkStmt->execute(array_values($teacherIds));
+        $validIds = array_map('intval', $checkStmt->fetchAll(PDO::FETCH_COLUMN));
+
+        if (count($validIds) !== count($teacherIds)) {
+            throw new Exception('พบรายชื่อบุคลากรที่ไม่มีอยู่ในระบบ กรุณาเลือกใหม่');
+        }
+    }
+
+    $delete = $db->prepare("DELETE FROM attendance_time_rule_teachers WHERE rule_id = :rule_id");
+    $delete->execute([':rule_id' => $ruleId]);
+
+    if (empty($validIds)) {
+        return;
+    }
+
+    $insert = $db->prepare("INSERT INTO attendance_time_rule_teachers (rule_id, teacher_id) VALUES (:rule_id, :teacher_id)");
+    foreach ($validIds as $teacherId) {
+        $insert->execute([':rule_id' => $ruleId, ':teacher_id' => $teacherId]);
+    }
+}
+
+function fetchTeacherOptionsForTimeRules($db)
+{
+    $stmt = $db->query("SELECT id, first_name, last_name, department, status
+                        FROM teachers
+                        ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, department ASC, first_name ASC, last_name ASC");
+
+    return array_map(static function ($row) {
+        return [
+            'id' => (int)$row['id'],
+            'name' => trim($row['first_name'] . ' ' . $row['last_name']),
+            'department' => $row['department'],
+            'status' => $row['status']
+        ];
+    }, $stmt->fetchAll(PDO::FETCH_ASSOC));
 }
 
 try {
@@ -364,6 +461,7 @@ try {
                 'active_calendar' => $active,
                 'legacy_settings' => $legacySettings,
                 'time_rules' => fetchAttendanceTimeRulesForSettings($db),
+                'time_rule_teacher_options' => fetchTeacherOptionsForTimeRules($db),
                 'effective_time_rule_today' => getAttendanceTimeRules($db, date('Y-m-d'))
             ]);
             break;
@@ -378,6 +476,8 @@ try {
 
             $payload = validateTimeRulePayload($input);
             $ruleId = isset($input['id']) ? (int)$input['id'] : 0;
+
+            $db->beginTransaction();
 
             if ($ruleId > 0) {
                 $check = $db->prepare("SELECT id FROM attendance_time_rules WHERE id = :id");
@@ -397,6 +497,7 @@ try {
                                           check_out_start = :check_out_start,
                                           check_out_end = :check_out_end,
                                           priority = :priority,
+                                          applies_to_all = :applies_to_all,
                                           is_active = :is_active
                                       WHERE id = :id");
                 $stmt->execute([
@@ -411,6 +512,7 @@ try {
                     ':check_out_start' => $payload['check_out_start'],
                     ':check_out_end' => $payload['check_out_end'],
                     ':priority' => $payload['priority'],
+                    ':applies_to_all' => $payload['applies_to_all'],
                     ':is_active' => $payload['is_active']
                 ]);
                 $message = 'บันทึกการแก้ไขกฎเวลาเรียบร้อย';
@@ -427,6 +529,7 @@ try {
                                         check_out_start,
                                         check_out_end,
                                         priority,
+                                        applies_to_all,
                                         is_active
                                       ) VALUES (
                                         :rule_name,
@@ -439,6 +542,7 @@ try {
                                         :check_out_start,
                                         :check_out_end,
                                         :priority,
+                                        :applies_to_all,
                                         :is_active
                                       )");
                 $stmt->execute([
@@ -452,12 +556,16 @@ try {
                     ':check_out_start' => $payload['check_out_start'],
                     ':check_out_end' => $payload['check_out_end'],
                     ':priority' => $payload['priority'],
+                    ':applies_to_all' => $payload['applies_to_all'],
                     ':is_active' => $payload['is_active']
                 ]);
                 $ruleId = (int)$db->lastInsertId();
                 $message = 'เพิ่มกฎเวลาเรียบร้อย';
                 $logAction = 'CREATE_ATTENDANCE_TIME_RULE';
             }
+
+            saveAttendanceTimeRuleTeachers($db, $ruleId, $payload['teacher_ids']);
+            $db->commit();
 
             logAdminAction(
                 $db,
@@ -469,7 +577,9 @@ try {
                     'start_date' => $payload['start_date'],
                     'end_date' => $payload['end_date'],
                     'weekdays' => $payload['weekdays'],
-                    'priority' => $payload['priority']
+                    'priority' => $payload['priority'],
+                    'applies_to_all' => $payload['applies_to_all'],
+                    'teacher_ids' => $payload['teacher_ids']
                 ]
             );
 
@@ -492,8 +602,12 @@ try {
                 jsonResponse(false, 'ไม่พบกฎเวลาที่ต้องการลบ', null, 404);
             }
 
+            $db->beginTransaction();
+            $deleteTeachers = $db->prepare("DELETE FROM attendance_time_rule_teachers WHERE rule_id = :id");
+            $deleteTeachers->execute([':id' => $ruleId]);
             $delete = $db->prepare("DELETE FROM attendance_time_rules WHERE id = :id");
             $delete->execute([':id' => $ruleId]);
+            $db->commit();
 
             logAdminAction(
                 $db,

@@ -33,7 +33,7 @@ if ($action === 'get' && isset($_GET['id'])) {
             jsonResponse(false, 'ไม่พบข้อมูลการลงเวลา', null, 404);
         }
 
-        $timeRules = getAttendanceTimeRules($db, $record['attendance_date'] ?? date('Y-m-d'));
+        $timeRules = getAttendanceTimeRules($db, $record['attendance_date'] ?? date('Y-m-d'), $record['teacher_id'] ?? null);
         $displayStatus = resolveAttendanceDisplayStatus($record, $timeRules['check_in_late']);
         
         jsonResponse(true, 'ดึงข้อมูลสำเร็จ', [
@@ -73,9 +73,11 @@ if ($action === 'list') {
 
     try {
         $timeRules = getAttendanceTimeRules($db, $date);
+        // เวลาเริ่มมาสายรายบุคคล (บุคลากรที่มีกฎเวลาเฉพาะจะใช้ค่าของตัวเอง)
+        $lateThresholdSql = buildLateThresholdSql(getAttendanceLateThresholdOverrides($db, $date));
         $effectiveStatusSql = "CASE
             WHEN a.check_in_time IS NOT NULL 
-                 AND TIME(a.check_in_time) > :late_threshold
+                 AND TIME(a.check_in_time) > {$lateThresholdSql}
                  AND COALESCE(TRIM(a.remark), '') <> :approved_late_remark
                 THEN 'late'
             WHEN a.check_in_time IS NOT NULL THEN 'present'
@@ -193,8 +195,9 @@ if ($action === 'list') {
         
         $records = $stmt->fetchAll();
 
-        $formattedRecords = array_map(function($record) use ($date, $timeRules) {
-            $displayStatus = resolveAttendanceDisplayStatus($record, $timeRules['check_in_late']);
+        $formattedRecords = array_map(function($record) use ($date, $db) {
+            $recordTimeRules = getAttendanceTimeRules($db, $date, $record['teacher_id']);
+            $displayStatus = resolveAttendanceDisplayStatus($record, $recordTimeRules['check_in_late']);
 
             return [
                 'id' => $record['id'], // attendance record id (อาจเป็น null ถ้ายังไม่ลงเวลา)
@@ -236,7 +239,7 @@ if ($action === 'stats') {
 
     try {
         $timeRules = getAttendanceTimeRules($db, $date);
-        $statsQuery = "SELECT status, remark, check_in_time, check_out_time
+        $statsQuery = "SELECT teacher_id, status, remark, check_in_time, check_out_time
                        FROM attendance_records
                        WHERE attendance_date = :date";
         $statsStmt = $db->prepare($statsQuery);
@@ -257,7 +260,8 @@ if ($action === 'stats') {
                 $stats['remark_count']++;
             }
 
-            $category = resolveAttendanceSummaryCategory($record, $timeRules['check_in_late']);
+            $recordTimeRules = getAttendanceTimeRules($db, $date, $record['teacher_id']);
+            $category = resolveAttendanceSummaryCategory($record, $recordTimeRules['check_in_late']);
             if ($category === 'present') {
                 $stats['present']++;
             } elseif ($category === 'late') {
